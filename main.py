@@ -1,39 +1,84 @@
-# import streamlit as st
-
-# st.set_page_config(
-#     page_title="My great ChatGPT",
-#     page_icon="🤗"
-# )
-# st.header("My Great ChatGPT 🤗")
-
-# if user_input := st.chat_input("何か入力してね！"):
-#     st.write(user_input)
-
-
-from langchain_google_genai import ChatGoogleGenerativeAI
-from dotenv import load_dotenv
-
-load_dotenv()
-
-
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash-001",
-    temperature=0.9,
-    max_tokens=None,
-    timeout=None,
-    max_retries=2,
+import streamlit as st
+import models
+from langchain.schema import (
+    SystemMessage,
+    HumanMessage,
+    AIMessage
 )
+# from langchain.callbacks import 
 
-messages = [
-    (
-        "system",
-        "あなたは日本語を関西弁に変換する助手です。ユーザーの文章を関西弁に変換してください。"
-    ),
-    (
-        "human",
-        "多様性（たようせい、英: diversity）とは、ある集団の中に異なる特徴・特性を持つ人がともに存在することである。英語の多様性diversityの語源は、ラテン語のdiverstiasに由来し、この言葉は、最初は「一致可能なものに反すること、矛盾、対立、不一致」といった消極的な意味を有したが、第二義的に「相違、多様、様々な形になる」という意味も併せ持っていた。17世紀になって、消極的な意味が失われ、現在のニュアンスになったとされている。また、diversityとは、相異なる要素を有する、もしくはそれから構成される状態であり、そこから更に、異なるタイプの人々をあるグループや組織に包摂すること、とされている"
+
+def init_page():
+    st.set_page_config(
+        page_title="My Great ChatGPT",
+        page_icon="🤗"
     )
-]
+    st.header("My Great ChatGPT 🤗")
+    st.sidebar.title("Options")
 
-ai_msg = llm.invoke(messages)
-print(ai_msg)
+
+def init_messages():
+    clear_button = st.sidebar.button("Clear Conversation", key="clear")
+    if clear_button or "messages" not in st.session_state:
+        st.session_state.messages = [
+            SystemMessage(content="You are a helpful assistant.")
+        ]
+        st.session_state.costs = []
+
+
+def select_model():
+    model = st.sidebar.radio("Choose a model:", ("Gemini 2.0 flash", "Gemini 2.5 pro"))
+    if model == "Gemini 2.0 flash":
+        model_name = "gemini-2.0-flash"
+    else:
+        model_name = "gemini-2.5-pro-exp-03-25"
+
+    # スライダーを追加し、temperatureを0から2までの範囲で選択可能にする
+    # 初期値は0.0、刻み幅は0.01とする
+    temperature = st.sidebar.slider("Temperature:", min_value=0.0, max_value=2.0, value=0.0, step=0.01)
+
+    return models.get(temperature=temperature, model_name=model_name)
+
+
+def get_answer(llm, messages):
+    #with get_openai_callback() as cb:
+    #    answer = llm(messages)
+    # return answer.content, cb.total_cost
+    
+    answer = llm(messages)
+    return answer.content, 0
+
+
+def main():
+    init_page()
+
+    llm = select_model()
+    init_messages()
+
+    # ユーザーの入力を監視
+    if user_input := st.chat_input("聞きたいことを入力してね！"):
+        st.session_state.messages.append(HumanMessage(content=user_input))
+        with st.spinner("LLM is typing ..."):
+            answer, cost = get_answer(llm, st.session_state.messages)
+        st.session_state.messages.append(AIMessage(content=answer))
+        st.session_state.costs.append(cost)
+
+    messages = st.session_state.get('messages', [])
+    for message in messages:
+        if isinstance(message, AIMessage):
+            with st.chat_message('assistant'):
+                st.markdown(message.content)
+        elif isinstance(message, HumanMessage):
+            with st.chat_message('user'):
+                st.markdown(message.content)
+        else:  # isinstance(message, SystemMessage):
+            st.write(f"System message: {message.content}")
+
+    costs = st.session_state.get('costs', [])
+    st.sidebar.markdown("## Costs")
+    st.sidebar.markdown(f"**Total cost: ${sum(costs):.5f}**")
+    for cost in costs:
+        st.sidebar.markdown(f"- ${cost:.5f}")
+
+if __name__ == '__main__':
+    main()
