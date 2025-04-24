@@ -61,7 +61,7 @@ def load_qdrant():
     return Qdrant(
         client=client,
         collection_name=COLLECTION_NAME, 
-        embeddings=OpenAIEmbeddings()
+        embeddings=GoogleGenerativeAIEmbeddings(model="models/embedding-001"),
     )
 
 
